@@ -1,0 +1,96 @@
+using Microsoft.AspNetCore.Mvc;
+using ExtraHours.API.DTOs;
+using ExtraHours.API.Models;
+using System.Threading.Tasks;
+using ExtraHours.API.Services;
+
+namespace ExtraHours.API.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class AuthController : ControllerBase
+    {
+        private readonly IAuthService _authService;
+
+        public AuthController(IAuthService authService)
+        {
+            _authService = authService;
+        }
+
+        [HttpPost("register")]
+        public async Task<ActionResult<User>> Register(RegisterRequest request)
+        {
+            var user = await _authService.RegisterAsync(request);
+            if (user == null)
+                return BadRequest("El nombre de usuario o el correo electrónico ya están registrados.");
+            user.PasswordHash = null;
+            return CreatedAtAction(nameof(Register), user);
+        }
+
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
+        {
+            var (token, user) = await _authService.LoginAsync(request, request.RememberMe);
+
+            if (user == null)
+    return Unauthorized(new { message = "Credenciales inválidas." });
+
+if (!user.IsActive)
+    return Unauthorized(new { message = "Tu cuenta está inactiva. Contacta al administrador." });
+
+if (token == null)
+    return Unauthorized(new { message = "Error al generar el token." });
+
+
+            return Ok(new
+            {
+                token,
+                role = user.Role.ToString(),
+                userId = user.Id,
+                username = user.Username,
+                email = user.Email,
+                firstName = user.FirstName,
+                lastName = user.LastName,
+                department = user.Department,
+                position = user.Position,
+            });
+        }
+    }
+}
+
+// using Microsoft.AspNetCore.Mvc;
+// using ExtraHours.API.Services;
+// using ExtraHours.API.DTOs;
+// using System.Threading.Tasks;
+
+// namespace ExtraHours.API.Controllers;
+
+// [ApiController]
+// [Route("api/[controller]")]
+// public class AuthController : ControllerBase
+// {
+//     private readonly IAuthService _authService;
+
+//     public AuthController(IAuthService authService)
+//     {
+//         _authService = authService;
+//     }
+
+//     [HttpPost("register")]
+//     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+//     {
+//         var user = await _authService.RegisterAsync(request);
+//         if (user == null)
+//             return BadRequest("El usuario ya existe.");
+//         return Ok(user);
+//     }
+
+//     [HttpPost("login")]
+//     public async Task<IActionResult> Login([FromBody] LoginRequest request)
+//     {
+//         var (token, user) = await _authService.LoginAsync(request, false);
+//         if (user == null)
+//             return Unauthorized("Credenciales inválidas.");
+//         return Ok(new { token, user });
+//     }
+// }
