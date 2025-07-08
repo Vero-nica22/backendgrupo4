@@ -26,4 +26,4 @@ jobs:
           run: dotnet test ExtraHours.Tests/ExtraHours.Tests.csproj
         
         - name: Build project
-          run: dotnet build ExtraHours.API/ExtraHours.API.csproj --no-restore -c Release --verbo
+          run: dotnet build ExtraHours.API/ExtraHours.API.csproj --no-restore -c Release --verbosity normal
