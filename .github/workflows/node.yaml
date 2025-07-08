@@ -1,0 +1,27 @@
+# Workflow for Node JS BUild
+
+name: Build React
+
+on: 
+    push:
+        branches: ["codigo_unido"]
+    pull_request:
+        branches: ["codigo_unido"]
+
+jobs: 
+    build_test:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                node-version: [21, 22]
+        steps:
+        - uses: actions/checkout@v4
+        - name: Use NodeJs ${{ matrix.node-version }}
+          uses: actions/setup-node@v4
+          with:
+            node-version: ${{ matrix.node-version }}
+        - name: NPM I, build
+          run: |
+            cd fronted
+            npm install
+            npx vite build

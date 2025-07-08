@@ -1,0 +1,29 @@
+# Workflow that builds a .NET Project
+
+name: .Net Amadeus
+
+on:
+    push:
+        branches: ["codigo_unido"]
+    pull_request:
+        branches: ["codigo_unido"]
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+
+        steps:
+        - uses: actions/checkout@v4
+        - name: Setup .NET
+          uses: actions/setup-dotnet@v4
+          with:
+            dotnet-version: 9.0.x
+        
+        - name: Restore Dependencies
+          run: dotnet restore ExtraHours.API/ExtraHours.API.csproj
+        
+        - name: Run Unit Tests
+          run: dotnet test ExtraHours.Tests/ExtraHours.Tests.csproj
+        
+        - name: Build project
+          run: dotnet build ExtraHours.API/ExtraHours.API.csproj --no-restore -c Release --verbo
