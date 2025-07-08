@@ -17,7 +17,7 @@ namespace ExtraHours.API.DTOs
 
         public string Position { get; set; }
         public bool IsActive { get; set; }
-        public string? ProfilePictureUrl { get; set; }
+      public string? ProfilePictureUrl { get; set; } 
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
 
@@ -33,7 +33,7 @@ namespace ExtraHours.API.DTOs
             DepartmentName = user.Department.Name;
             Position = user.Position;
             IsActive = user.IsActive;
-            ProfilePictureUrl = user.ProfilePictureUrl;
+            ProfilePictureUrl = user.ProfilePictureUrl; 
             CreatedAt = user.CreatedAt;
             UpdatedAt = user.UpdatedAt;
         }

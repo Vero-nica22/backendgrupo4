@@ -10,4 +10,6 @@ public interface IUserService
     Task<UserDto?> CreateAsync(UserCreationDto userDto);
     Task<bool> UpdateAsync(int id, UserUpdateDto userDto);
     Task<bool> DeleteAsync(int id);
+    Task<string?> UploadProfilePictureAsync(int userId, IFormFile file);
+
 }

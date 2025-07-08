@@ -448,7 +448,6 @@ const Users = () => {
                     >
                       <option value="">Selecciona un rol</option>
                       <option value="Admin">Admin</option>
-                      <option value="Manager">Manager</option>
                       <option value="Employee">Employee</option>
                     </select>
                   </div>
@@ -482,37 +481,6 @@ const Users = () => {
                       setCurrentUser({ ...currentUser, position: e.target.value })
                     }
                   />
-                </div>
-
-                <div>
-                  <label className="block text-gray-700 text-sm mb-1">
-                    Imagen de Perfil (opcional)
-                  </label>
-                  <div className="flex items-center space-x-4">
-                    <label className="cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm transition-colors">
-                      Seleccionar imagen
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleFileChange}
-                      />
-                    </label>
-                    {previewImage && (
-                      <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200">
-                        <img
-                          src={previewImage}
-                          alt="Vista previa"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
-                  </div>
-                  {selectedFile && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Archivo seleccionado: {selectedFile.name}
-                    </p>
-                  )}
                 </div>
 
                 <div>

@@ -1,16 +1,5 @@
-import React, { useState, useEffect } from "react";
-import {
-  User,
-  Settings,
-  Briefcase,
-  Award,
-  Mail,
-  Clock,
-  Sun,
-  Moon,
-  ChevronLeft,
-  Upload,
-} from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { User, Settings, Briefcase, Mail, Sun, Moon, ChevronLeft, Camera } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { useNavigate } from "react-router-dom";
 import authService from "../services/authService";
@@ -18,59 +7,140 @@ import authService from "../services/authService";
 const AdminProfile = () => {
   const { isLightTheme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const [user, setUser] = useState({
-    firstName: "Cargando",
-    lastName: "",
-    email: "",
-    role: "",
-    department: "",
-    position: "",
-    isActive: true,
-    profilePicture: null,
-  });
+ const [user, setUser] = useState({
+  firstName: "Cargando",
+  lastName: "",
+  email: "",
+  role: "",
+  department: "Cargando departamento...",
+  departmentId: null,
+  position: "",
+  isActive: true,
+  profilePictureUrl: null, // ✅ importante
+});
+
 
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
-    if (currentUser) {
-      setUser((prevUser) => ({
-        ...prevUser,
-        firstName: currentUser.firstName || "Sin Nombre",
-        lastName: currentUser.lastName || "Sin Apellido",
-        email: currentUser.email || "sinemail@ejemplo.com",
-        role: currentUser.role || "Sin Rol",
-        department: currentUser.department || "Sin Departamento",
-        position: currentUser.position || "Sin Posición",
-        isActive:
-          currentUser.isActive !== undefined ? currentUser.isActive : true,
-        profilePicture:
-          currentUser.profilePictureUrl ||
-          localStorage.getItem("profilePhoto") ||
-          null,
-      }));
-    } else {
+    if (!currentUser) {
       navigate("/login");
+      return;
     }
+
+    const userIdToFetch = currentUser.userId;
+    if (!userIdToFetch) {
+      console.error("No se pudo obtener el userId del usuario actual.");
+      navigate("/login");
+      return;
+    }
+
+    const fetchUserProfile = async () => {
+      try {
+        const userRes = await fetch(
+          `http://localhost:5023/api/users/${userIdToFetch}`,
+          {
+            headers: {
+              Authorization: `Bearer ${currentUser.token}`,
+            },
+          }
+        );
+        
+        if (!userRes.ok) throw new Error("No se pudo obtener el perfil");
+        
+        const userData = await userRes.json();
+        
+        let departmentName = "Sin departamento";
+        if (userData.departmentId) {
+          try {
+            const deptRes = await fetch(
+              `http://localhost:5023/api/departments/${userData.departmentId}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${currentUser.token}`,
+                },
+              }
+            );
+            
+            if (deptRes.ok) {
+              const deptData = await deptRes.json();
+              departmentName = deptData.name;
+            }
+          } catch (err) {
+            console.error("Error al obtener el departamento:", err);
+          }
+        }
+
+        if (userData.profilePictureUrl) {
+  setPreviewUrl(`http://localhost:5023${userData.profilePictureUrl}`);
+}
+
+        setUser({
+          ...userData,
+          department: departmentName,
+        });
+      } catch (err) {
+        console.error("Error al cargar el perfil:", err);
+        navigate("/login");
+      }
+    };
+
+    fetchUserProfile();
   }, [navigate]);
 
-  useEffect(() => {
-    if (user.profilePicture) {
-      localStorage.setItem("profilePhoto", user.profilePicture);
-    }
-  }, [user.profilePicture]);
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-  const handleProfilePictureChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUser((prev) => ({
-          ...prev,
-          profilePicture: reader.result,
-        }));
-      };
-      reader.readAsDataURL(file);
+    // Mostrar vista previa inmediata desde el dispositivo local
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setPreviewUrl(event.target.result); // Esto muestra la imagen seleccionada al instante
+    };
+    reader.readAsDataURL(file);
+
+    // Subir la foto al servidor en segundo plano
+    setIsUploading(true);
+    const formData = new FormData();
+formData.append("file", file);
+
+    try {
+      const currentUser = authService.getCurrentUser();
+     const response = await fetch(
+  `http://localhost:5023/api/users/${currentUser.userId}/upload-profile-picture`, // ✅ endpoint correcto
+  {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${currentUser.token}`,
+    },
+    body: formData,
+  }
+);
+
+const result = await response.json();
+      
+     // ✅ Actualiza el estado y la vista previa con la URL del servidor
+setUser(prev => ({
+  ...prev,
+  profilePictureUrl: result.imageUrl,
+}));
+setPreviewUrl(`http://localhost:5023${result.imageUrl}`);
+      
+      // Mantenemos la vista previa local (más rápida) pero actualizamos con la URL del servidor
+      // setPreviewUrl(`http://localhost:5023/${result.profilePicture}`);
+    } catch (error) {
+      console.error('Error al subir la foto:', error);
+      // Si hay error, mantenemos la vista previa local hasta que se resuelva
+    } finally {
+      setIsUploading(false);
     }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current.click();
   };
 
   const colors = {
@@ -111,13 +181,11 @@ const AdminProfile = () => {
           className="w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden"
           style={{ backgroundColor: currentTheme.cardBackground }}
         >
-          {/* Header Section */}
           <div
             className="relative py-12 px-8 flex flex-col items-center"
             style={{ backgroundColor: currentTheme.primary, color: "white" }}
           >
-            {/* Back Button */}
-            {/* Asegúrate de que la ruta de regreso sea correcta para tu AdminDashboard */}
+            {/* Botón de retroceso y tema */}
             <a
               href="/admin-dashboard"
               className="absolute top-4 left-4 p-2 rounded-full hover:bg-white/20 transition-colors flex items-center justify-center"
@@ -126,7 +194,6 @@ const AdminProfile = () => {
               <ChevronLeft size={24} />
             </a>
 
-            {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
               className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/20 transition-colors"
@@ -134,47 +201,54 @@ const AdminProfile = () => {
               {isLightTheme ? <Moon size={24} /> : <Sun size={24} />}
             </button>
 
-            {/* Profile Picture & Upload Interface */}
-            <div className="relative">
+            {/* Área de la foto de perfil */}
+            <div className="relative group">
               <div
-                className="w-28 h-28 rounded-full flex items-center justify-center shadow-lg mb-4 overflow-hidden"
+                className="w-28 h-28 rounded-full flex items-center justify-center shadow-lg mb-4 overflow-hidden relative"
                 style={{ backgroundColor: currentTheme.iconBackground }}
               >
-                {user.profilePicture ? (
-                  <img
-                    src={user.profilePicture}
-                    alt="Foto de perfil"
+                {previewUrl ? (
+                  <img 
+                    src={previewUrl} 
+                    alt="Profile" 
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <User
-                    size={64}
-                    color={currentTheme.primary}
-                    strokeWidth={1.5}
-                  />
+                  <User size={64} color={currentTheme.primary} strokeWidth={1.5} />
+                )}
+                
+                {isUploading && (
+                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-white"></div>
+                  </div>
                 )}
               </div>
-
-              {/* Profile picture upload button */}
-              <label
-                htmlFor="profile-picture-upload"
-                className="absolute bottom-4 right-0 bg-white rounded-full p-2 shadow-md cursor-pointer hover:bg-gray-100 transition-colors border"
-                style={{
-                  borderColor: currentTheme.border,
-                  backgroundColor: currentTheme.cardBackground,
-                }}
+              
+              {/* Botón para cambiar foto */}
+              <button
+                onClick={triggerFileInput}
+                disabled={isUploading}
+                className={`absolute bottom-0 right-0 p-2 rounded-full shadow-md transition-all ${
+                  isUploading 
+                    ? "bg-gray-400 cursor-not-allowed" 
+                    : "bg-white hover:bg-gray-100 cursor-pointer"
+                }`}
+                style={{ color: currentTheme.primary }}
+                title="Cambiar foto de perfil"
               >
-                <Upload size={16} color={currentTheme.primary} />
-                <input
-                  type="file"
-                  id="profile-picture-upload"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleProfilePictureChange}
-                />
-              </label>
+                <Camera size={20} />
+              </button>
+              
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="image/*"
+                className="hidden"
+              />
             </div>
 
+            {/* Información del usuario */}
             <h1 className="text-3xl font-bold">
               {user.firstName} {user.lastName}
             </h1>
@@ -185,9 +259,8 @@ const AdminProfile = () => {
             </div>
           </div>
 
-          {/* Content Sections */}
+          {/* Secciones de detalles profesionales y configuración */}
           <div className="p-8">
-            {/* Professional Details */}
             <div
               className="w-full rounded-2xl p-6 space-y-4 border mb-6"
               style={{ borderColor: currentTheme.border }}
@@ -225,58 +298,6 @@ const AdminProfile = () => {
               </div>
             </div>
 
-            {/* Performance Overview */}
-            <div
-              className="w-full rounded-2xl p-6 space-y-4 border mb-6"
-              style={{ borderColor: currentTheme.border }}
-            >
-              <h2
-                className="text-xl font-semibold flex items-center mb-4"
-                style={{ color: currentTheme.primary }}
-              >
-                <Award className="mr-3" /> Rendimiento
-              </h2>
-              <div className="space-y-4">
-                {[
-                  { label: "Horas extra", value: "20 este mes", icon: Clock },
-                  {
-                    label: "Aprobación de horas extra",
-                    value: "95%",
-                    icon: Award,
-                  },
-                  { label: "Última revisión", value: "Excelente", icon: User },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="flex items-center justify-between p-4 rounded-xl border"
-                    style={{ borderColor: currentTheme.border }}
-                  >
-                    <div className="flex items-center space-x-4">
-                      <item.icon
-                        className="w-6 h-6"
-                        color={currentTheme.primary}
-                      />
-                      <div>
-                        <h3
-                          className="text-sm"
-                          style={{ color: currentTheme.subtleText }}
-                        >
-                          {item.label}
-                        </h3>
-                        <p
-                          className="text-lg font-bold"
-                          style={{ color: currentTheme.accent }}
-                        >
-                          {item.value}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Account Settings */}
             <div
               className="w-full rounded-2xl p-6 space-y-4 border"
               style={{ borderColor: currentTheme.border }}

@@ -2,9 +2,12 @@ using ExtraHours.API.Data;
 using ExtraHours.API.Models;
 using ExtraHours.API.DTOs;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.IO;
 using System;
+using System.Linq;
 
 public class UserService : IUserService
 {
@@ -23,16 +26,14 @@ public class UserService : IUserService
             .ToListAsync();
     }
 
-  public async Task<UserDto?> GetByIdAsync(int id)
-{
-    var user = await _context.Users
-        .Include(u => u.Department) 
-        .FirstOrDefaultAsync(u => u.Id == id);
+    public async Task<UserDto?> GetByIdAsync(int id)
+    {
+        var user = await _context.Users
+            .Include(u => u.Department)
+            .FirstOrDefaultAsync(u => u.Id == id);
 
-    return user != null ? new UserDto(user) : null;
-}
-
-
+        return user != null ? new UserDto(user) : null;
+    }
 
     public async Task<UserDto?> CreateAsync(UserCreationDto userDto)
     {
@@ -41,7 +42,6 @@ public class UserService : IUserService
 
         string passwordHash = BCrypt.Net.BCrypt.HashPassword(userDto.Password);
 
-        // Buscar el departamento real por ID
         var department = await _context.Departments.FindAsync(userDto.DepartmentId);
         if (department == null)
             throw new Exception($"No se encontró el departamento con ID {userDto.DepartmentId}");
@@ -69,7 +69,6 @@ public class UserService : IUserService
         return new UserDto(user);
     }
 
-
     public async Task<bool> UpdateAsync(int id, UserUpdateDto userDto)
     {
         var existingUser = await _context.Users
@@ -96,10 +95,8 @@ public class UserService : IUserService
 
         if (userDto.DepartmentId.HasValue && userDto.DepartmentId.Value != existingUser.Department?.Id)
         {
-
             var oldDepartment = await _context.Departments.FindAsync(existingUser.DepartmentId);
             if (oldDepartment != null) oldDepartment.Employees--;
-
 
             var newDepartment = await _context.Departments.FindAsync(userDto.DepartmentId.Value);
             if (newDepartment == null)
@@ -109,20 +106,10 @@ public class UserService : IUserService
             existingUser.Department = newDepartment;
         }
 
-        if (userDto.DepartmentId.HasValue && userDto.DepartmentId.Value != existingUser.Department?.Id)
-        {
-            var department = await _context.Departments.FindAsync(userDto.DepartmentId.Value);
-            if (department == null)
-                throw new Exception($"No se encontró el departamento con ID {userDto.DepartmentId}");
-
-            existingUser.Department = department;
-        }
-
         _context.Entry(existingUser).State = EntityState.Modified;
         await _context.SaveChangesAsync();
         return true;
     }
-
 
     public async Task<bool> DeleteAsync(int id)
     {
@@ -132,7 +119,6 @@ public class UserService : IUserService
 
         if (user == null)
             return false;
-
 
         if (user.Department != null)
         {
@@ -144,4 +130,30 @@ public class UserService : IUserService
         return true;
     }
 
+    // ✅ Nuevo método para subir imagen de perfil
+    public async Task<string?> UploadProfilePictureAsync(int userId, IFormFile file)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+            return null;
+
+        var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "profile-pictures");
+        if (!Directory.Exists(uploadsFolder))
+            Directory.CreateDirectory(uploadsFolder);
+
+        var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(file.FileName)}";
+        var filePath = Path.Combine(uploadsFolder, fileName);
+
+        using (var stream = new FileStream(filePath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        user.ProfilePictureUrl = $"/profile-pictures/{fileName}";
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return user.ProfilePictureUrl;
+    }
 }

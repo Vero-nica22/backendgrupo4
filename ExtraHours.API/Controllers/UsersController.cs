@@ -41,6 +41,20 @@ namespace ExtraHours.API.Controllers
             return CreatedAtAction(nameof(GetUser), new { id = user.Id }, user);
         }
 
+        [HttpPost("{id}/upload-profile-picture")]
+public async Task<IActionResult> UploadProfilePicture(int id, IFormFile file)
+{
+    if (file == null || file.Length == 0)
+        return BadRequest("No se ha enviado ninguna imagen.");
+
+    var imageUrl = await _userService.UploadProfilePictureAsync(id, file);
+    if (imageUrl == null)
+        return NotFound("Usuario no encontrado.");
+
+    return Ok(new { imageUrl });
+}
+
+
         [HttpPut("{id}")]
         public async Task<IActionResult> PutUser(int id, UserUpdateDto userDto)
         {

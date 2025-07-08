@@ -9,12 +9,12 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
-using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Identity;
-using BCrypt.Net;
+using System.Text.Json.Serialization;
 using ExtraHours.API.Services;
 using ExtraHours.API.Repositories;
 using ExtraHours.API.Interfaces;
+using Microsoft.AspNetCore.Http.Features;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,7 +28,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IExtraHourRequestRepository, ExtraHourRequestRepository>();
-
+builder.Services.AddHttpContextAccessor(); // ✅ Necesario para acceder al usuario autenticado
 
 // 🔗 Configuración de conexión a base de datos
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -107,6 +107,12 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("ManagerOrAdmin", policy => policy.RequireRole(UserRole.Manager.ToString(), UserRole.Admin.ToString()));
 });
 
+// 📎 Límite de tamaño para archivos
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 5 * 1024 * 1024; // 5MB
+});
+
 var app = builder.Build();
 
 // 🧪 Carga inicial de datos
@@ -179,8 +185,15 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
 app.UseCors("AllowSpecificOrigin");
-app.UseAuthentication();
-app.UseAuthorization();
+
+app.UseAuthentication(); // ✅ Habilita autenticación
+app.UseAuthorization();  // ✅ Habilita autorización
+
+app.UseStaticFiles();
+
+
 app.MapControllers();
+
 app.Run();

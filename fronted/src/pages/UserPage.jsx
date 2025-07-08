@@ -21,10 +21,13 @@ import {
   AlertOctagon,
   Moon,
   PartyPopper,
-  Sun
+  Sun,
+  User // Añadí el ícono User de lucide-react
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import authService from "../services/authService";
+import { useNavigate } from "react-router-dom";
+
 
 const UserPage = () => {
   const { isLightTheme } = useTheme();
@@ -48,12 +51,34 @@ const UserPage = () => {
   const [showFutureDateModal, setShowFutureDateModal] = useState(false);
   const [showOverlapModal, setShowOverlapModal] = useState(false);
   const [userNames, setUserNames] = useState({});
-
-
-
-
+  const navigate = useNavigate();
+  const [userProfile, setUserProfile] = useState(null);
   const currentUser = authService.getCurrentUser();
   const currentUserId = currentUser?.userId;
+
+  useEffect(() => {
+  const fetchUserProfile = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token || !currentUserId) return;
+
+      const res = await fetch(`http://localhost:5023/api/users/${currentUserId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) throw new Error("No se pudo obtener el perfil");
+
+      const data = await res.json();
+      setUserProfile(data);
+    } catch (error) {
+      console.error("Error al cargar el perfil del usuario:", error);
+    }
+  };
+
+  fetchUserProfile();
+}, [currentUserId]);
 
   const mockCurrentUserDetails = {
     userId: "user123",
@@ -648,14 +673,25 @@ const fetchUserName = async (userId) => {
     >
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
+          {/* Sección modificada para el avatar */}
           <div className="flex items-center space-x-4">
-            <div className="flex-shrink-0">
-              <img
-                src={mockCurrentUserDetails.profilePicture}
-                alt="Foto de Perfil"
-                className="w-16 h-16 rounded-full object-cover border-4"
-                style={{ borderColor: currentTheme.primary }}
-              />
+            <div className="relative">
+              <a href="/user-profile" className="block">
+               <div
+  className="w-16 h-16 rounded-full overflow-hidden shadow-lg bg-gray-200"
+>
+  {userProfile?.profilePictureUrl ? (
+    <img
+      src={`http://localhost:5023${userProfile.profilePictureUrl}`}
+      alt="Foto de perfil"
+      className="w-full h-full object-cover"
+    />
+  ) : (
+    <User className="w-full h-full p-3 text-white" />
+  )}
+</div>
+              </a>
+              <div className="absolute bottom-0 right-0 bg-green-500 w-4 h-4 rounded-full border-2 border-white"></div>
             </div>
             <div>
               <h1
@@ -674,8 +710,23 @@ const fetchUserName = async (userId) => {
                 <Briefcase size={16} className="mr-1" />
                 <span>{mockCurrentUserDetails.department}</span>
               </div>
+
+              {/* Botón Ver perfil */}
+              <button
+                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
+                onClick={() => {
+                  if (mockCurrentUserDetails.role === "Admin") {
+                    navigate("/admin-profile");
+                  } else {
+                    navigate("/user-profile");
+                  }
+                }}
+              >
+                Ver perfil
+              </button>
             </div>
           </div>
+
           <button
             onClick={() => setShowRegisterForm(true)}
             className="flex items-center px-4 py-2 rounded-md font-semibold shadow-md transition-all duration-300 hover:scale-105"
@@ -688,6 +739,7 @@ const fetchUserName = async (userId) => {
           </button>
         </div>
 
+        {/* Resto del código permanece igual */}
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-6">
           {/* Card de Horas Totales */}
           <div className="p-4 rounded-xl border shadow-sm flex items-center space-x-4" style={{ borderColor: currentTheme.summaryCardBorder, backgroundColor: currentTheme.summaryCardBg }}>
