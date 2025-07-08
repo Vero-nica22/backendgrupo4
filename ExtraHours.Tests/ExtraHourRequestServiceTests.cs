@@ -1,75 +1,115 @@
-using Xunit;
-using Moq;
-using System.Threading.Tasks;
-using ExtraHours.API.Models;
 using ExtraHours.API.DTOs;
-using ExtraHours.API.Services;
+using ExtraHours.API.Models;
 using ExtraHours.API.Repositories;
+using ExtraHours.API.Services;
+using NSubstitute;
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Xunit;
 
-public class ExtraHourRequestServiceTests
+namespace ExtraHours.Test
 {
-    [Fact]
-    public async Task CreateAsync_Should_Create_New_ExtraHourRequest()
+    public class ExtraHourRequestServiceTests
     {
-        // Arrange
-        var repoMock = new Mock<IExtraHourRequestRepository>();
-        var userId = 1;
-        var requestDto = new ExtraHourRequestCreateDto
+        private readonly IExtraHourRequestRepository _repository;
+        private readonly ExtraHourRequestService _service;
+
+        public ExtraHourRequestServiceTests()
         {
-            DateOfExtraHours = DateTime.Today,
-            StartTime = DateTime.Today.AddHours(19),
-            EndTime = DateTime.Today.AddHours(20),
-            Reason = "Prueba"
-        };
+            _repository = Substitute.For<IExtraHourRequestRepository>();
+            _service = new ExtraHourRequestService(_repository);
+        }
 
-        repoMock.Setup(repo => repo.CreateAsync(It.IsAny<ExtraHourRequest>()))
-            .ReturnsAsync((ExtraHourRequest req) => req);
-
-        var service = new ExtraHourRequestService(repoMock.Object);
-
-        // Act
-        var result = await service.CreateAsync(userId, requestDto);
-
-        // Assert
-        Assert.NotNull(result);
-        // Assert.Equal(userId, result.UserId);
-        // Assert.Equal(requestDto.Reason, result.Reason);
-        // Assert.Equal("Pendiente", result.Status);
-        repoMock.Verify(repo => repo.CreateAsync(It.IsAny<ExtraHourRequest>()), Times.Once);
-    }
-    [Fact]
-    public async Task GetByIdAsync_Should_Return_ExtraHourRequest_When_Found()
-    {
-        var repoMock = new Mock<IExtraHourRequestRepository>();
-        var request = new ExtraHourRequest { Id = 1, Reason = "Prueba", Status = "Pendiente" };
-        repoMock.Setup(repo => repo.GetByIdAsync(1)).ReturnsAsync(request);
-
-        var service = new ExtraHourRequestService(repoMock.Object);
-
-        var result = await service.GetByIdAsync(1);
-
-        Assert.Equal(1, result.Id);
-        repoMock.Verify(repo => repo.GetByIdAsync(1), Times.Once);
-    }
-    [Fact]
-    public async Task GetAllAsync_Should_Return_All_ExtraHourRequests()
-    {
-        var repoMock = new Mock<IExtraHourRequestRepository>();
-        var requests = new List<ExtraHourRequest>
+        [Fact]
+        public async Task CreateAsync_ValidRequest_ReturnsCreatedRequest()
         {
-            new ExtraHourRequest { Id = 1, Reason = "Prueba 1", Status = "Pendiente" },
-            new ExtraHourRequest { Id = 2, Reason = "Prueba 2", Status = "Aprobado" }
-        };
-        repoMock.Setup(repo => repo.GetAllAsync()).ReturnsAsync(requests);
+            // Arrange
+            var userId = 1;
+            var now = DateTime.UtcNow;
 
-        var service = new ExtraHourRequestService(repoMock.Object);
+            var requestDto = new ExtraHourRequestCreateDto
+            {
+                DateOfExtraHours = now.Date,
+                StartTime = now.AddHours(-2),
+                EndTime = now,
+                Reason = "Worked on urgent bug fix",
+                ExtraHourTypeId = 1
+            };
 
-        var result = await service.GetAllAsync();
+            var expectedRequest = new ExtraHourRequest
+            {
+                UserId = userId,
+                DateOfExtraHours = requestDto.DateOfExtraHours,
+                StartTime = requestDto.StartTime,
+                EndTime = requestDto.EndTime,
+                Reason = requestDto.Reason,
+                Status = "Pendiente",
+                RequestDate = now,
+                AdminComments = string.Empty
+            };
 
-        Assert.Equal(2, ((List<ExtraHourRequest>)result).Count);
-        repoMock.Verify(repo => repo.GetAllAsync(), Times.Once);
+            _repository.CreateAsync(Arg.Any<ExtraHourRequest>())
+                       .Returns(call => call.Arg<ExtraHourRequest>());
+
+            // Act
+            var result = await _service.CreateAsync(userId, requestDto);
+
+            // Assert
+            Assert.Equal(userId, result.UserId);
+            Assert.Equal("Pendiente", result.Status);
+            Assert.Equal(requestDto.Reason, result.Reason);
+            Assert.Equal(requestDto.StartTime, result.StartTime);
+            Assert.Equal(requestDto.EndTime, result.EndTime);
+        }
+
+        [Fact]
+        public async Task GetByIdAsync_ExistingId_ReturnsRequest()
+        {
+            // Arrange
+            var request = new ExtraHourRequest { Id = 1, Reason = "Support" };
+            _repository.GetByIdAsync(1).Returns(request);
+
+            // Act
+            var result = await _service.GetByIdAsync(1);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal("Support", result?.Reason);
+        }
+
+        [Fact]
+        public async Task GetByIdAsync_NonExistingId_ReturnsNull()
+        {
+            // Arrange
+            _repository.GetByIdAsync(99).Returns((ExtraHourRequest?)null);
+
+            // Act
+            var result = await _service.GetByIdAsync(99);
+
+            // Assert
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task GetAllAsync_ReturnsAllRequests()
+        {
+            // Arrange
+            var requests = new List<ExtraHourRequest>
+            {
+                new ExtraHourRequest { Id = 1, Reason = "Late deployment" },
+                new ExtraHourRequest { Id = 2, Reason = "System maintenance" }
+            };
+
+            _repository.GetAllAsync().Returns(requests);
+
+            // Act
+            var result = await _service.GetAllAsync();
+
+            // Assert
+            Assert.Equal(2, result.Count());
+            Assert.Contains(result, r => r.Reason == "Late deployment");
+        }
     }
-
-
 }

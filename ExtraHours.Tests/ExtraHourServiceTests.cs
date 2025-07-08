@@ -1,94 +1,164 @@
-using Xunit;
-using Moq;
-using System.Threading.Tasks;
-using System.Collections.Generic;
 using ExtraHours.API.Models;
 using ExtraHours.API.Services;
+using Microsoft.AspNetCore.Http;
+using NSubstitute;
+using System;
+using System.Collections.Generic;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using Xunit;
 
-public class ExtraHourServiceTests
+namespace ExtraHours.Test
 {
-    [Fact]
-    public async Task CreateAsync_Should_Call_Repository_And_Return_ExtraHour()
+    public class ExtraHourServiceTests
     {
-        // Arrange
-        var mockRepo = new Mock<IExtraHourRepository>();
-        var extraHour = new ExtraHour { Id = 1, Reason = "Prueba", Status = "Pendiente" };
-        mockRepo.Setup(repo => repo.CreateAsync(extraHour)).ReturnsAsync(extraHour);
+        private readonly IExtraHourRepository _repository;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly ExtraHourService _service;
 
-        var service = new ExtraHourService(mockRepo.Object);
-
-        // Act
-        var result = await service.CreateAsync(extraHour);
-
-        // Assert
-        Assert.Equal(extraHour, result);
-        mockRepo.Verify(repo => repo.CreateAsync(extraHour), Times.Once);
-    }
-    [Fact]
-    public async Task GetAllAsync_Should_Return_All_ExtraHours()
-    {
-        // Arrange
-        var mockRepo = new Mock<IExtraHourRepository>();
-        var extraHoursList = new List<ExtraHour>
+        public ExtraHourServiceTests()
         {
-            new ExtraHour { Id = 1, Reason = "Prueba 1", Status = "Pendiente" },
-            new ExtraHour { Id = 2, Reason = "Prueba 2", Status = "Aprobado" }
-        };
-        mockRepo.Setup(repo => repo.GetAllAsync()).ReturnsAsync(extraHoursList);
+            _repository = Substitute.For<IExtraHourRepository>();
+            _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+            _service = new ExtraHourService(_repository, _httpContextAccessor);
+        }
 
-        var service = new ExtraHourService(mockRepo.Object);
+        [Fact]
+        public async Task GetAllAsync_ReturnsAllExtraHours()
+        {
+            // Arrange
+            var extraHours = new List<ExtraHour>
+            {
+                new ExtraHour { Id = 1, Reason = "Worked late" },
+                new ExtraHour { Id = 2, Reason = "Weekend support" }
+            };
+            _repository.GetAllAsync().Returns(extraHours);
 
-        // Act
-        var result = await service.GetAllAsync();
+            // Act
+            var result = await _service.GetAllAsync();
 
-        // Assert
-        Assert.Equal(2, ((List<ExtraHour>)result).Count);
-        // Assert.Contains(result, x => x.Reason == "Prueba 1");
-        // Assert.Contains(result, x => x.Reason == "Prueba 2");
-        mockRepo.Verify(repo => repo.GetAllAsync(), Times.Once);
+            // Assert
+            Assert.Equal(2, result.Count());
+        }
+
+        [Fact]
+        public async Task GetByIdAsync_ExistingId_ReturnsExtraHour()
+        {
+            // Arrange
+            var extraHour = new ExtraHour { Id = 1, Reason = "Support" };
+            _repository.GetByIdAsync(1).Returns(extraHour);
+
+            // Act
+            var result = await _service.GetByIdAsync(1);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal("Support", result?.Reason);
+        }
+
+        [Fact]
+        public async Task CreateAsync_WithAuthenticatedUser_SetsUserId()
+        {
+            // Arrange
+            var userId = 42;
+            var claims = new List<Claim> { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) };
+            var identity = new ClaimsIdentity(claims, "TestAuth");
+            var principal = new ClaimsPrincipal(identity);
+            var context = Substitute.For<HttpContext>();
+            context.User.Returns(principal);
+            _httpContextAccessor.HttpContext.Returns(context);
+
+            var extraHour = new ExtraHour { Reason = "After hours fix" };
+            _repository.CreateAsync(Arg.Any<ExtraHour>())
+                       .Returns(call => call.Arg<ExtraHour>());
+
+            // Act
+            var result = await _service.CreateAsync(extraHour);
+
+            // Assert
+            Assert.Equal(userId, result.UserId);
+            Assert.Equal("After hours fix", result.Reason);
+        }
+
+        [Fact]
+        public async Task CreateAsync_WithoutAuthenticatedUser_DoesNotSetUserId()
+        {
+            // Arrange
+            _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+
+            var extraHour = new ExtraHour { Reason = "No user context" };
+            _repository.CreateAsync(Arg.Any<ExtraHour>())
+                       .Returns(call => call.Arg<ExtraHour>());
+
+            // Act
+            var result = await _service.CreateAsync(extraHour);
+
+            // Assert
+            Assert.Equal("No user context", result.Reason);
+            Assert.Equal(0, result.UserId); // default int value
+        }
+
+        [Fact]
+        public async Task UpdateAsync_ValidId_ReturnsUpdated()
+        {
+            // Arrange
+            var updated = new ExtraHour { Id = 1, Reason = "Updated" };
+            _repository.UpdateAsync(1, updated).Returns(updated);
+
+            // Act
+            var result = await _service.UpdateAsync(1, updated);
+
+            // Assert
+            Assert.Equal("Updated", result?.Reason);
+        }
+
+        [Fact]
+        public async Task DeleteAsync_ValidId_ReturnsTrue()
+        {
+            // Arrange
+            _repository.DeleteAsync(1).Returns(true);
+
+            // Act
+            var result = await _service.DeleteAsync(1);
+
+            // Assert
+            Assert.True(result);
+        }
+
+        [Fact]
+        public async Task GetRecentAsync_ReturnsRecentEntries()
+        {
+            // Arrange
+            var recent = new List<ExtraHour>
+            {
+                new ExtraHour { Id = 1 },
+                new ExtraHour { Id = 2 }
+            };
+            _repository.GetRecentAsync(2).Returns(recent);
+
+            // Act
+            var result = await _service.GetRecentAsync(2);
+
+            // Assert
+            Assert.Equal(2, result.Count());
+        }
+
+        [Fact]
+        public async Task GetByUserIdAsync_ReturnsUserEntries()
+        {
+            // Arrange
+            var userEntries = new List<ExtraHour>
+            {
+                new ExtraHour { Id = 1, UserId = 10 },
+                new ExtraHour { Id = 2, UserId = 10 }
+            };
+            _repository.GetByUserIdAsync(10).Returns(userEntries);
+
+            // Act
+            var result = await _service.GetByUserIdAsync(10);
+
+            // Assert
+            Assert.All(result, r => Assert.Equal(10, r.UserId));
+        }
     }
-    [Fact]
-    public async Task GetByIdAsync_Should_Return_ExtraHour_When_Found()
-    {
-        var mockRepo = new Mock<IExtraHourRepository>();
-        var extraHour = new ExtraHour { Id = 1, Reason = "Prueba", Status = "Pendiente" };
-        mockRepo.Setup(repo => repo.GetByIdAsync(1)).ReturnsAsync(extraHour);
-
-        var service = new ExtraHourService(mockRepo.Object);
-
-        var result = await service.GetByIdAsync(1);
-
-        Assert.Equal(1, result.Id);
-        mockRepo.Verify(repo => repo.GetByIdAsync(1), Times.Once);
-    }
-    [Fact]
-    public async Task UpdateAsync_Should_Return_Updated_ExtraHour_When_Found()
-    {
-        var mockRepo = new Mock<IExtraHourRepository>();
-        var updatedHour = new ExtraHour { Id = 1, Reason = "Actualizar", Status = "Aprobado" };
-        mockRepo.Setup(repo => repo.UpdateAsync(1, updatedHour)).ReturnsAsync(updatedHour);
-
-        var service = new ExtraHourService(mockRepo.Object);
-
-        var result = await service.UpdateAsync(1, updatedHour);
-
-        Assert.Equal("Actualizar", result.Reason);
-
-        mockRepo.Verify(repo => repo.UpdateAsync(1, updatedHour), Times.Once);
-    }
-
-    [Fact]
-    public async Task DeleteAsync_Should_Return_True_When_Deleted()
-    {
-        var mockRepo = new Mock<IExtraHourRepository>();
-        mockRepo.Setup(repo => repo.DeleteAsync(1)).ReturnsAsync(true);
-
-        var service = new ExtraHourService(mockRepo.Object);
-
-        var result = await service.DeleteAsync(1);
-
-        Assert.True(result);
-        mockRepo.Verify(repo => repo.DeleteAsync(1), Times.Once);
-    }
-
 }
