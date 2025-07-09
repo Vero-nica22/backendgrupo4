@@ -13,7 +13,6 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminProfile from "./pages/AdminProfile";
 import Password from "./pages/Password";
 import UserPage from "./pages/UserPage";
-
 import ProtectedRoute from "./components/ProtectedRoute";
 import authService from "./services/authService";
 

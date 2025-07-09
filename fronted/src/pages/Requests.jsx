@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+
 import {
   Card,
   CardContent,
@@ -128,14 +129,12 @@ const Requests = () => {
     if (filter === "Aprobado" && request.status === "Aprobado") return true;
     if (filter === "Rechazado" && request.status === "Rechazado") return true;
 
-    if (
-      filter === "Tipo de Hora" &&
-      extraHourType &&
-      request.reason === extraHourType
-    )
-      return true;
-
-    return false;
+if (
+  filter === "Tipo de Hora" &&
+  extraHourType &&
+  request.hourType === extraHourType
+)
+  return true;
   });
 
   const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
@@ -357,18 +356,19 @@ const Requests = () => {
                 <option value="Rechazado">Rechazado</option>
                 <option value="Tipo de Hora">Tipo de Hora</option>
               </select>
-              {filter === "Tipo de Hora" && (
-                <select
-                  className="border border-gray-300 rounded p-2 mb-2 md:mb-0 bg-white text-gray-900"
-                  value={extraHourType}
-                  onChange={(e) => setExtraHourType(e.target.value)}
-                >
-                  <option value="">Selecciona un tipo</option>
-                  <option value="Extra Diurna">Extra Diurna</option>
-                  <option value="Extra Nocturna">Extra Nocturna</option>
-                  <option value="Dominical/Festivo">Dominical/Festivo</option>
-                </select>
-              )}
+         {filter === "Tipo de Hora" && (
+  <select
+    className="border border-gray-300 rounded p-2 mb-2 md:mb-0 bg-white text-gray-900"
+    value={extraHourType}
+    onChange={(e) => setExtraHourType(e.target.value)}
+  >
+    <option value="">Selecciona un tipo</option>
+    <option value="normal">Normal</option>
+    <option value="nocturna">Nocturna</option>
+    <option value="festiva">Festiva</option>
+    <option value="dominical">Dominical</option>
+  </select>
+)}
               <input
                 type="date"
                 className="border border-gray-300 rounded p-2 mb-2 md:mb-0 bg-white text-gray-900"
