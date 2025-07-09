@@ -1,0 +1,8 @@
+# desarrollo backend .NET
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS dev
+RUN dotnet tool install --global dotnet-ef
+ENV PATH="$PATH:/root/.dotnet/tools"
+WORKDIR /app
+COPY . .
+EXPOSE 5023
+CMD ["dotnet", "watch", "run", "--project", "ExtraHours.API/ExtraHours.API.csproj", "--urls", "http://0.0.0.0:5023"]

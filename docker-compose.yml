@@ -1,0 +1,56 @@
+version: "3.9"
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./ExtraHours.API:/app/ExtraHours.API
+      - ./ExtraHours.Tests:/app/ExtraHours.Tests
+      - ./Models:/app/Models
+      - ./Services:/app/Services
+      - ./Repositories:/app/Repositories
+      - ./Data:/app/Data
+      - ./Migrations:/app/Migrations
+      - ./DTOs:/app/DTOs
+      - ./Program.cs:/app/Program.cs
+      - ./appsettings.json:/app/appsettings.json
+      - ./appsettings.Development.json:/app/appsettings.Development.json
+      - /app/ExtraHours.API/bin
+      - /app/ExtraHours.API/obj
+    ports:
+      - "5023:5023"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      - mysql
+    command: >
+      /bin/bash -c "dotnet ef database update --project /app/ExtraHours.API/ExtraHours.API.csproj --startup-project /app/ExtraHours.API/ExtraHours.API.csproj && dotnet watch --project /app/ExtraHours.API/ExtraHours.API.csproj run --urls=http://0.0.0.0:5023"
+
+  mysql:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: extrahoursdb
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  frontend:
+    build:
+      context: ./fronted
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./fronted:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
