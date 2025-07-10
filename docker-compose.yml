@@ -22,6 +22,14 @@ services:
       - "5023:5023"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=extrahoursdb
+      - DB_USER=root
+      - DB_PASSWORD=1234
+      - JWT_KEY=12345678901234567890123456789012
+      - JWT_ISSUER=TuApiExtraHours
+      - JWT_AUDIENCE=ExtraHoursWebApp
     depends_on:
       - mysql
     command: >
